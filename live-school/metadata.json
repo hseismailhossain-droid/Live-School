@@ -1,0 +1,6 @@
+{
+  "name": "LIVE SCHOOL",
+  "description": "LIVE SCHOOL - প্রফেশনাল অনলাইন কুইজ ও লার্নিং পোর্টাল।",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
