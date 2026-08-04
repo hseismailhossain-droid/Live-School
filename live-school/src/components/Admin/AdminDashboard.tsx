@@ -645,7 +645,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         }),
       });
 
-      const data = await res.json();
+      const text = await res.text();
+      let data: any = {};
+      try {
+        data = JSON.parse(text);
+      } catch (parseErr) {
+        throw new Error('সার্ভার থেকে সঠিক রেসপন্স পাওয়া যায়নি। Vercel/Hosting এ GEMINI_API_KEY সেট করা আছে কিনা এবং /api/generate-questions এন্ডপয়েন্ট সক্রিয় আছে কিনা চেক করুন।');
+      }
 
       if (!res.ok || !data.success) {
         throw new Error(data.error || 'AI প্রশ্ন তৈরিতে সমস্যা দেখা দিয়েছে।');
