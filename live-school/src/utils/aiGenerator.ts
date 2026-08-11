@@ -13,7 +13,7 @@ export interface GenerateQuestionsParams {
 }
 
 async function generateWithGeminiFallback(ai: GoogleGenAI, prompt: string): Promise<string> {
-  const models = ['gemini-3.6-flash', 'gemini-flash-latest', 'gemini-3.1-pro-preview'];
+  const models = ['gemini-3.6-flash', 'gemini-flash-latest', 'gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
   let lastErr: any = null;
 
   for (const model of models) {
@@ -38,7 +38,8 @@ async function generateWithGeminiFallback(ai: GoogleGenAI, prompt: string): Prom
 }
 
 export async function generateQuestionsWithAI(params: GenerateQuestionsParams): Promise<any> {
-  // 1. Try Vercel Server API first
+  // 1. Try Vercel Server / Express API first
+  let apiErrorMessage: string | null = null;
   try {
     const res = await fetch('/api/generate-questions', {
       method: 'POST',
@@ -55,11 +56,14 @@ export async function generateQuestionsWithAI(params: GenerateQuestionsParams): 
       if (data && data.error) {
         throw new Error(data.error);
       }
+    } else if (!res.ok) {
+      apiErrorMessage = `সার্ভার রেসপন্স এরর (${res.status})`;
     }
   } catch (apiErr: any) {
-    if (apiErr?.message && !apiErr.message.includes('fetch')) {
+    if (apiErr?.message && !apiErr.message.includes('fetch') && !apiErr.message.includes('NetworkError')) {
       throw apiErr;
     }
+    apiErrorMessage = apiErr?.message || 'Network error';
     console.warn('API Route /api/generate-questions unreachable or failed, trying direct client-side AI fallback...', apiErr);
   }
 
@@ -68,7 +72,7 @@ export async function generateQuestionsWithAI(params: GenerateQuestionsParams): 
 
   if (!rawKey) {
     throw new Error(
-      'Vercel-এ AI কাজ করানোর জন্য Vercel Settings -> Environment Variables এ GEMINI_API_KEY যোগ করুন এবং Redeploy দিন।'
+      'Vercel Settings -> Environment Variables এ GEMINI_API_KEY যোগ করার পর অবশ্যই Vercel Deployments ট্যাবে গিয়ে "Redeploy" অপশনে ক্লিক করে অ্যাপটি পুনরায় ডিপ্লয় করতে হবে (Redeploy ছাড়া নতুন API Key লাইভ অ্যাপে কাজ করে না)।'
     );
   }
 
