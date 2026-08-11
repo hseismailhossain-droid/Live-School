@@ -11,6 +11,31 @@ const PORT = 3000;
 
 app.use(express.json({ limit: '10mb' }));
 
+async function generateWithGeminiFallback(ai: GoogleGenAI, prompt: string): Promise<string> {
+  const models = ['gemini-3.6-flash', 'gemini-flash-latest', 'gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
+  let lastErr: any = null;
+
+  for (const model of models) {
+    try {
+      const response = await ai.models.generateContent({
+        model,
+        contents: prompt,
+        config: {
+          responseMimeType: 'application/json',
+        },
+      });
+      if (response && response.text) {
+        return response.text;
+      }
+    } catch (err) {
+      console.warn(`Model ${model} failed in Express server, trying next...`, err);
+      lastErr = err;
+    }
+  }
+
+  throw lastErr || new Error('Gemini API calls failed on all available models.');
+}
+
 // API Endpoint for AI Question & Exam Set Generation (Gemini API)
 app.post('/api/generate-questions', async (req, res) => {
   try {
@@ -29,14 +54,20 @@ app.post('/api/generate-questions', async (req, res) => {
       return res.status(400).json({ error: 'Topic is required' });
     }
 
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
+    let rawKey = (process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY || '').trim();
+    if (!rawKey) {
       return res.status(400).json({ 
-        error: 'GEMINI_API_KEY পাওয়া যায়নি। অনুগ্রহ করে AI Studio এর Secrets প্যানেলে API কী সেট করুন।' 
+        error: 'GEMINI_API_KEY পাওয়া যায়নি। অনুগ্রহ করে Environment Variables এ GEMINI_API_KEY যোগ করুন।' 
       });
     }
 
-    const ai = new GoogleGenAI({ apiKey });
+    if (rawKey.includes('...') || rawKey.endsWith('...')) {
+      return res.status(400).json({ 
+        error: 'অসম্পূর্ণ API Key! আপনার বসানো GEMINI_API_KEY-টির শেষে "..." রয়েছে। Google AI Studio থেকে ৩৯ অক্ষরের সম্পূর্ণ Key-টি কপি করে বসান।' 
+      });
+    }
+
+    const ai = new GoogleGenAI({ apiKey: rawKey });
 
     // Mode 1 & 2: MCQ Questions (General Quiz & Live Exam)
     if (type === 'mcq' || type === 'live_exam') {
@@ -61,15 +92,7 @@ Example output JSON format:
   }
 ]`;
 
-      const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: prompt,
-        config: {
-          responseMimeType: 'application/json',
-        }
-      });
-
-      const responseText = response.text || '';
+      const responseText = await generateWithGeminiFallback(ai, prompt);
       let parsedQuestions = [];
       try {
         parsedQuestions = JSON.parse(responseText);
@@ -122,15 +145,7 @@ The object must strictly match this structure:
   ]
 }`;
 
-      const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: prompt,
-        config: {
-          responseMimeType: 'application/json',
-        }
-      });
-
-      const responseText = response.text || '';
+      const responseText = await generateWithGeminiFallback(ai, prompt);
       let parsedObj: any = {};
       try {
         parsedObj = JSON.parse(responseText);
@@ -191,15 +206,7 @@ The object must strictly match this structure:
   ]
 }`;
 
-      const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: prompt,
-        config: {
-          responseMimeType: 'application/json',
-        }
-      });
-
-      const responseText = response.text || '';
+      const responseText = await generateWithGeminiFallback(ai, prompt);
       let parsedObj: any = {};
       try {
         parsedObj = JSON.parse(responseText);
