@@ -7,7 +7,7 @@ export const config = {
 };
 
 async function generateWithGeminiFallback(ai: GoogleGenAI, prompt: string): Promise<string> {
-  const models = ['gemini-3.6-flash', 'gemini-flash-latest', 'gemini-3.1-pro-preview'];
+  const models = ['gemini-3.6-flash', 'gemini-flash-latest', 'gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
   let lastErr: any = null;
 
   for (const model of models) {
