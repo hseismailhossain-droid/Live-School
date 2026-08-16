@@ -8,6 +8,7 @@ import { Category, LiveExam, Question, QuizResult, QuizSettings, WrittenQuestion
 import { ensureCategoryLevel, toBengaliNumeral, getStoredSocialLinks, saveStoredSocialLinks, getStoredBanners, saveStoredBanners } from '../../utils/storage';
 import { parseBulkQuestionsText } from '../../utils/bulkParser';
 import { parseBulkWrittenQuestionsText } from '../../utils/writtenBulkParser';
+import { generateQuestionsWithAI } from '../../utils/aiGenerator';
 import { LiveExamManager } from './LiveExamManager';
 
 interface AdminDashboardProps {
@@ -630,32 +631,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     }
 
     try {
-      const res = await fetch('/api/generate-questions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: aiTargetType,
-          topic: aiTopic,
-          categoryId: targetCat,
-          levelId: targetLevelId,
-          levelNum: aiLevelNum,
-          setName: aiSetName || 'সেট ১',
-          timeLimitMinutes: aiTimeLimitMinutes || 15,
-          count: aiCount,
-        }),
+      const data = await generateQuestionsWithAI({
+        type: aiTargetType,
+        topic: aiTopic,
+        categoryId: targetCat,
+        levelId: targetLevelId,
+        levelNum: aiLevelNum,
+        setName: aiSetName || 'সেট ১',
+        timeLimitMinutes: aiTimeLimitMinutes || 15,
+        count: aiCount,
       });
-
-      const text = await res.text();
-      let data: any = {};
-      try {
-        data = JSON.parse(text);
-      } catch (parseErr) {
-        throw new Error('সার্ভার থেকে সঠিক রেসপন্স পাওয়া যায়নি। Vercel/Hosting এ GEMINI_API_KEY সেট করা আছে কিনা এবং /api/generate-questions এন্ডপয়েন্ট সক্রিয় আছে কিনা চেক করুন।');
-      }
-
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || 'AI প্রশ্ন তৈরিতে সমস্যা দেখা দিয়েছে।');
-      }
 
       if (data.type === 'mcq' || !data.type) {
         const listWithTags = (data.questions || []).map((q: Question) => ({
@@ -1297,29 +1282,68 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           {/* Parsed Questions Preview Cards */}
           {bulkParsedQuestions.length > 0 && (
             <div className="space-y-3 pt-4 border-t border-slate-100">
-              <h3 className="font-bold text-slate-900 text-sm">পার্সকৃত প্রশ্নের প্রিভিউ:</h3>
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="font-bold text-slate-900 text-sm">পার্সকৃত প্রশ্নের প্রিভিউ:</h3>
+                  <p className="text-[11px] text-slate-500">
+                    💡 কোনো প্রশ্নের সঠিক উত্তর পরিবর্তন করতে সংশ্লিষ্ট অপশনে ক্লিক করুন। সবুজ রঙের অপশনটি সঠিক উত্তর হিসেবে সেভ হবে।
+                  </p>
+                </div>
+                <button
+                  onClick={() => setBulkParsedQuestions([])}
+                  className="text-xs text-rose-600 hover:text-rose-700 font-bold cursor-pointer"
+                >
+                  প্রিভিউ ক্লিয়ার করুন
+                </button>
+              </div>
+
               <div className="space-y-3">
                 {bulkParsedQuestions.map((q, idx) => (
-                  <div key={q.id} className="p-4 bg-slate-50 border border-slate-200 rounded-2xl text-xs space-y-2">
-                    <div className="font-bold text-slate-900">
-                      {toBengaliNumeral(idx + 1)}. {q.questionText}
+                  <div key={q.id || idx} className="p-4 bg-slate-50 border border-slate-200 rounded-2xl text-xs space-y-2 relative group">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="font-bold text-slate-900 text-sm">
+                        {toBengaliNumeral(idx + 1)}. {q.questionText}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setBulkParsedQuestions(prev => prev.filter((_, itemIdx) => itemIdx !== idx));
+                        }}
+                        className="text-slate-400 hover:text-rose-600 p-1 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer"
+                        title="এই প্রশ্নটি বাদ দিন"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
                     </div>
-                    <div className="grid grid-cols-2 gap-2 text-slate-700">
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-slate-700">
                       {q.options.map((opt, oIdx) => (
                         <div
                           key={oIdx}
-                          className={`p-2 rounded-lg border ${
+                          onClick={() => {
+                            setBulkParsedQuestions(prev => prev.map((item, itemIdx) => 
+                              itemIdx === idx ? { ...item, correctAnswerIndex: oIdx } : item
+                            ));
+                          }}
+                          className={`p-2.5 rounded-xl border cursor-pointer transition-all flex items-center justify-between ${
                             oIdx === q.correctAnswerIndex
-                              ? 'bg-emerald-100 border-emerald-400 font-bold text-emerald-900'
-                              : 'bg-white border-slate-200'
+                              ? 'bg-emerald-100 border-emerald-500 font-bold text-emerald-950 ring-2 ring-emerald-400/50 shadow-xs'
+                              : 'bg-white border-slate-200 hover:bg-slate-100 hover:border-slate-300'
                           }`}
+                          title="সঠিক উত্তর পরিবর্তন করতে ক্লিক করুন"
                         >
-                          {toBengaliNumeral(oIdx + 1)}. {opt}
+                          <span>{toBengaliNumeral(oIdx + 1)}. {opt}</span>
+                          {oIdx === q.correctAnswerIndex && (
+                            <span className="text-[10px] bg-emerald-600 text-white px-1.5 py-0.5 rounded-md font-bold">
+                              ✓ সঠিক
+                            </span>
+                          )}
                         </div>
                       ))}
                     </div>
-                    <div className="text-slate-600 italic">
-                      ব্যাখ্যা: {q.explanation}
+
+                    <div className="text-slate-600 italic bg-white/70 p-2 rounded-lg border border-slate-200/60">
+                      <span className="font-semibold text-slate-700">ব্যাখ্যা:</span> {q.explanation}
                     </div>
                   </div>
                 ))}
