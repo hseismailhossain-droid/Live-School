@@ -3,6 +3,7 @@ import { Radio, PlusCircle, Trash2, Calendar, Clock, AlertTriangle, Check, Shiel
 import { Category, LiveExam, Question } from '../../types';
 import { toBengaliNumeral } from '../../utils/storage';
 import { parseBulkQuestionsText } from '../../utils/bulkParser';
+import { generateQuestionsWithAI } from '../../utils/aiGenerator';
 
 interface LiveExamManagerProps {
   categories: Category[];
@@ -63,6 +64,7 @@ export const LiveExamManager: React.FC<LiveExamManagerProps> = ({
 
   // Bulk for Live Exam State
   const [bulkText, setBulkText] = useState('');
+  const [bulkParsedQuestions, setBulkParsedQuestions] = useState<Question[]>([]);
   const [bulkStatus, setBulkStatus] = useState<{ success: boolean; msg: string } | null>(null);
 
   // AI for Live Exam State
@@ -139,9 +141,9 @@ export const LiveExamManager: React.FC<LiveExamManagerProps> = ({
     setTimeout(() => setSingleAddedMsg(''), 3000);
   };
 
-  // Bulk Add to Live Exam
-  const handleBulkAddToExam = () => {
-    if (!managingExam || !onBulkAddQuestions || !bulkText.trim()) return;
+  // Bulk Add Preview / Save to Live Exam
+  const handleBulkPreviewForExam = () => {
+    if (!managingExam || !bulkText.trim()) return;
     const { questions: parsed, errorMsg } = parseBulkQuestionsText(
       bulkText,
       managingExam.categoryId,
@@ -149,22 +151,32 @@ export const LiveExamManager: React.FC<LiveExamManagerProps> = ({
     );
 
     if (errorMsg || parsed.length === 0) {
-      setBulkStatus({ success: false, msg: errorMsg || 'প্রশ্ন পার্স করতে ব্যর্থ হয়েছে।' });
+      setBulkStatus({ success: false, msg: errorMsg || 'প্রশ্ন পার্স করতে ব্যর্থ হয়েছে। প্রশ্ন ও অপশনগুলো ফরম্যাট অনুযায়ী আছে কিনা চেক করুন।' });
+      setBulkParsedQuestions([]);
       return;
     }
 
-    // Attach examId and questionType to all parsed questions
     const examQuestions = parsed.map((q) => ({
       ...q,
       examId: managingExam.id,
       questionType: 'live_exam' as const,
     }));
 
-    onBulkAddQuestions(examQuestions);
+    setBulkParsedQuestions(examQuestions);
     setBulkStatus({
       success: true,
-      msg: `সফলভাবে ${toBengaliNumeral(examQuestions.length)} টি প্রশ্ন এই লাইভ পরীক্ষায় যোগ করা হয়েছে!`,
+      msg: `মোট ${toBengaliNumeral(examQuestions.length)} টি প্রশ্ন পার্স করা হয়েছে! নিচে চেক করে লাইভ পরীক্ষায় সেভ করুন।`,
     });
+  };
+
+  const handleBulkSaveToExam = () => {
+    if (!managingExam || !onBulkAddQuestions || bulkParsedQuestions.length === 0) return;
+    onBulkAddQuestions(bulkParsedQuestions);
+    setBulkStatus({
+      success: true,
+      msg: `সফলভাবে ${toBengaliNumeral(bulkParsedQuestions.length)} টি প্রশ্ন এই লাইভ পরীক্ষায় যুক্ত করা হয়েছে! 🎉`,
+    });
+    setBulkParsedQuestions([]);
     setBulkText('');
   };
 
@@ -179,28 +191,13 @@ export const LiveExamManager: React.FC<LiveExamManagerProps> = ({
     setAiError('');
 
     try {
-      const res = await fetch('/api/generate-questions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          topic: aiTopic,
-          categoryId: managingExam.categoryId,
-          levelId: managingExam.id,
-          count: aiCount,
-        }),
+      const data = await generateQuestionsWithAI({
+        type: 'mcq',
+        topic: aiTopic,
+        categoryId: managingExam.categoryId,
+        levelId: managingExam.id,
+        count: aiCount,
       });
-
-      const text = await res.text();
-      let data: any = {};
-      try {
-        data = JSON.parse(text);
-      } catch (parseErr) {
-        throw new Error('সার্ভার থেকে সঠিক রেসপন্স পাওয়া যায়নি। Vercel/Hosting এ GEMINI_API_KEY সেট করা আছে কিনা এবং /api/generate-questions এন্ডপয়েন্ট কাজ করছে কিনা চেক করুন।');
-      }
-
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || 'AI প্রশ্ন তৈরি ব্যর্থ হয়েছে।');
-      }
 
       const generated: Question[] = (data.questions || []).map((q: any) => ({
         ...q,
@@ -699,13 +696,82 @@ export const LiveExamManager: React.FC<LiveExamManagerProps> = ({
                           className="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl text-xs font-mono"
                         />
 
-                        <button
-                          type="button"
-                          onClick={handleBulkAddToExam}
-                          className="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl shadow-xs transition-all cursor-pointer"
-                        >
-                          📄 ইম্পোর্ট করে লাইভ পরীক্ষায় সেভ করুন
-                        </button>
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={handleBulkPreviewForExam}
+                            className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs rounded-xl shadow-xs transition-all cursor-pointer flex items-center gap-1.5"
+                          >
+                            <FileText className="w-3.5 h-3.5" />
+                            <span>প্রশ্ন পার্স করে চেক করুন</span>
+                          </button>
+
+                          {bulkParsedQuestions.length > 0 && (
+                            <button
+                              type="button"
+                              onClick={handleBulkSaveToExam}
+                              className="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl shadow-xs transition-all cursor-pointer flex items-center gap-1.5"
+                            >
+                              <Check className="w-3.5 h-3.5" />
+                              <span>সবগুলো ({toBengaliNumeral(bulkParsedQuestions.length)} টি) প্রশ্ন লাইভ পরীক্ষায় সেভ করুন</span>
+                            </button>
+                          )}
+                        </div>
+
+                        {/* Bulk Preview in Live Exam */}
+                        {bulkParsedQuestions.length > 0 && (
+                          <div className="space-y-2.5 pt-3 border-t border-slate-200">
+                            <div className="flex items-center justify-between">
+                              <span className="font-bold text-slate-800 text-xs">পার্সকৃত প্রশ্নের প্রিভিউ:</span>
+                              <span className="text-[10px] text-slate-500">অপশনে ক্লিক করে সঠিক উত্তর পরিবর্তন করতে পারেন</span>
+                            </div>
+
+                            <div className="space-y-2.5 max-h-80 overflow-y-auto pr-1">
+                              {bulkParsedQuestions.map((q, idx) => (
+                                <div key={idx} className="p-3 bg-white border border-slate-200 rounded-xl text-xs space-y-2 shadow-xs">
+                                  <div className="flex items-start justify-between gap-2 font-bold text-slate-900">
+                                    <span>{toBengaliNumeral(idx + 1)}. {q.questionText}</span>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setBulkParsedQuestions(prev => prev.filter((_, itemIdx) => itemIdx !== idx));
+                                      }}
+                                      className="text-slate-400 hover:text-rose-600 p-1"
+                                      title="বাদ দিন"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-[11px]">
+                                    {q.options.map((opt, oIdx) => (
+                                      <div
+                                        key={oIdx}
+                                        onClick={() => {
+                                          setBulkParsedQuestions(prev => prev.map((item, itemIdx) => 
+                                            itemIdx === idx ? { ...item, correctAnswerIndex: oIdx } : item
+                                          ));
+                                        }}
+                                        className={`p-2 rounded-lg border cursor-pointer transition-all flex items-center justify-between ${
+                                          oIdx === q.correctAnswerIndex
+                                            ? 'bg-emerald-100 border-emerald-500 font-bold text-emerald-950 ring-1 ring-emerald-400'
+                                            : 'bg-slate-50 border-slate-200 hover:bg-slate-100 text-slate-700'
+                                        }`}
+                                      >
+                                        <span>{toBengaliNumeral(oIdx + 1)}. {opt}</span>
+                                        {oIdx === q.correctAnswerIndex && (
+                                          <span className="text-[9px] bg-emerald-600 text-white px-1 py-0.2 rounded font-bold">
+                                            ✓ সঠিক
+                                          </span>
+                                        )}
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
 
