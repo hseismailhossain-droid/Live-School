@@ -16,6 +16,21 @@ import {
   getStoredSocialLinks, saveStoredSocialLinks,
   getStoredBanners, saveStoredBanners
 } from './utils/storage';
+import {
+  syncAllWithCloud,
+  subscribeToCloudData,
+  cloudSaveQuestions,
+  cloudSaveLiveExams,
+  cloudSaveCategories,
+  cloudSaveQuizSettings,
+  cloudSaveLeaderboardResult,
+  cloudSaveWrittenQuestions,
+  cloudSaveWrittenResult,
+  cloudSaveEnglishQuestions,
+  cloudSaveEnglishResult,
+  cloudSaveSocialLinks,
+  cloudSaveBanners
+} from './lib/cloudStorage';
 
 import { Navbar } from './components/Navbar';
 import { UserNameModal } from './components/UserNameModal';
@@ -57,8 +72,9 @@ export default function App() {
   const [activeWrittenQuestion, setActiveWrittenQuestion] = useState<WrittenQuestion | null>(null);
   const [activeEnglishSet, setActiveEnglishSet] = useState<EnglishQuestionSet | null>(null);
 
-  // Load Initial Storage Data
+  // Load Initial Storage Data and Cloud Sync
   useEffect(() => {
+    // 1. Load local fast cache
     setCategories(getStoredCategories());
     setQuestions(getStoredQuestions());
     setLeaderboard(getStoredLeaderboard());
@@ -73,16 +89,46 @@ export default function App() {
     if (savedSession) {
       setUserSession(savedSession);
     }
+
+    // 2. Perform initial background sync with Cloud Firestore
+    syncAllWithCloud().then(() => {
+      setCategories(getStoredCategories());
+      setQuestions(getStoredQuestions());
+      setLiveExams(getStoredLiveExams());
+      setLeaderboard(getStoredLeaderboard());
+      setWrittenQuestions(getStoredWrittenQuestions());
+      setEnglishQuestions(getStoredEnglishQuestions());
+      setSocialLinks(getStoredSocialLinks());
+      setBanners(getStoredBanners());
+      setSettings(getStoredQuizSettings());
+    });
+
+    // 3. Listen for real-time cloud changes (any device updates will reflect instantly)
+    const unsubscribe = subscribeToCloudData(() => {
+      setCategories(getStoredCategories());
+      setQuestions(getStoredQuestions());
+      setLiveExams(getStoredLiveExams());
+      setLeaderboard(getStoredLeaderboard());
+      setWrittenQuestions(getStoredWrittenQuestions());
+      setEnglishQuestions(getStoredEnglishQuestions());
+      setSocialLinks(getStoredSocialLinks());
+      setBanners(getStoredBanners());
+      setSettings(getStoredQuizSettings());
+    });
+
+    return () => {
+      unsubscribe();
+    };
   }, []);
 
   const handleSaveSocialLinks = (links: SocialLinks) => {
     setSocialLinks(links);
-    saveStoredSocialLinks(links);
+    cloudSaveSocialLinks(links);
   };
 
   const handleSaveBanners = (updatedBanners: BannerSlide[]) => {
     setBanners(updatedBanners);
-    saveStoredBanners(updatedBanners);
+    cloudSaveBanners(updatedBanners);
   };
 
   // Save User Session Handler
@@ -187,8 +233,9 @@ export default function App() {
   // Complete Quiz Handler
   const handleFinishQuiz = (result: QuizResult) => {
     setLastQuizResult(result);
-    const updatedLeaderboard = saveQuizResultToLeaderboard(result);
-    setLeaderboard(updatedLeaderboard);
+    cloudSaveLeaderboardResult(result).then((updated) => {
+      setLeaderboard(updated);
+    });
     setActiveView('result');
   };
 
@@ -219,30 +266,31 @@ export default function App() {
     const normalized = normalizeQuestion(newQuestion);
     const updated = [normalized, ...questions];
     setQuestions(updated);
-    saveStoredQuestions(updated);
+    cloudSaveQuestions(updated);
   };
 
   const handleBulkAddQuestions = (newQuestions: Question[]) => {
     const normalizedList = newQuestions.map(normalizeQuestion);
     const updated = [...normalizedList, ...questions];
     setQuestions(updated);
-    saveStoredQuestions(updated);
+    cloudSaveQuestions(updated);
   };
 
   const handleDeleteQuestion = (qId: string) => {
     const updated = questions.filter((q) => q.id !== qId);
     setQuestions(updated);
-    saveStoredQuestions(updated);
+    cloudSaveQuestions(updated);
   };
 
   const handleResetQuestions = () => {
     const defaultQs = resetQuestionsToDefault();
     setQuestions(defaultQs);
+    cloudSaveQuestions(defaultQs);
   };
 
   const handleSaveSettings = (newSettings: QuizSettings) => {
     setSettings(newSettings);
-    saveStoredQuizSettings(newSettings);
+    cloudSaveQuizSettings(newSettings);
   };
 
   // SEO & Google Search Console Meta Tag Injection Effect
@@ -278,31 +326,31 @@ export default function App() {
   const handleAddLiveExam = (exam: LiveExam) => {
     const updated = [exam, ...liveExams];
     setLiveExams(updated);
-    saveStoredLiveExams(updated);
+    cloudSaveLiveExams(updated);
   };
 
   const handleDeleteLiveExam = (examId: string) => {
     const updated = liveExams.filter((e) => e.id !== examId);
     setLiveExams(updated);
-    saveStoredLiveExams(updated);
+    cloudSaveLiveExams(updated);
   };
 
   const handleUpdateCategories = (updatedCats: Category[]) => {
     setCategories(updatedCats);
-    saveStoredCategories(updatedCats);
+    cloudSaveCategories(updatedCats);
   };
 
   // --- Written Exam Handlers ---
   const handleAddWrittenQuestion = (wq: WrittenQuestion) => {
     const updated = [wq, ...writtenQuestions];
     setWrittenQuestions(updated);
-    saveStoredWrittenQuestions(updated);
+    cloudSaveWrittenQuestions(updated);
   };
 
   const handleDeleteWrittenQuestion = (id: string) => {
     const updated = writtenQuestions.filter((q) => q.id !== id);
     setWrittenQuestions(updated);
-    saveStoredWrittenQuestions(updated);
+    cloudSaveWrittenQuestions(updated);
   };
 
   const handleStartWrittenExam = (q: WrittenQuestion) => {
@@ -315,21 +363,22 @@ export default function App() {
   };
 
   const handleFinishWrittenExam = (result: WrittenExamResult) => {
-    const updatedResults = saveWrittenResult(result);
-    setWrittenResults(updatedResults);
+    cloudSaveWrittenResult(result).then((updatedResults) => {
+      setWrittenResults(updatedResults);
+    });
   };
 
   // --- English Translation Handlers ---
   const handleAddEnglishQuestion = (eq: EnglishQuestionSet) => {
     const updated = [eq, ...englishQuestions];
     setEnglishQuestions(updated);
-    saveStoredEnglishQuestions(updated);
+    cloudSaveEnglishQuestions(updated);
   };
 
   const handleDeleteEnglishQuestion = (id: string) => {
     const updated = englishQuestions.filter((q) => q.id !== id);
     setEnglishQuestions(updated);
-    saveStoredEnglishQuestions(updated);
+    cloudSaveEnglishQuestions(updated);
   };
 
   const handleStartEnglishExam = (set: EnglishQuestionSet) => {
@@ -342,8 +391,9 @@ export default function App() {
   };
 
   const handleFinishEnglishExam = (result: EnglishExamResult) => {
-    const updatedResults = saveEnglishResult(result);
-    setEnglishResults(updatedResults);
+    cloudSaveEnglishResult(result).then((updatedResults) => {
+      setEnglishResults(updatedResults);
+    });
   };
 
   return (
