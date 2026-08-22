@@ -2,10 +2,11 @@ import React, { useState } from 'react';
 import { 
   PlusCircle, FileText, Sparkles, Database, Settings as SettingsIcon, 
   Trash2, ArrowLeft, Check, RefreshCw, Layers, ShieldCheck, LogOut, Radio, PenTool, Plus,
-  Share2, Facebook, Youtube, Send, MessageSquare, Globe
+  Share2, Facebook, Youtube, Send, MessageSquare, Globe, Cloud, CheckCircle2
 } from 'lucide-react';
 import { Category, LiveExam, Question, QuizResult, QuizSettings, WrittenQuestion, WrittenExamResult, WrittenSubQuestion, EnglishQuestionSet, EnglishExamResult, SocialLinks, BannerSlide } from '../../types';
 import { ensureCategoryLevel, toBengaliNumeral, getStoredSocialLinks, saveStoredSocialLinks, getStoredBanners, saveStoredBanners } from '../../utils/storage';
+import { syncAllWithCloud, cloudSaveQuestions } from '../../lib/cloudStorage';
 import { parseBulkQuestionsText } from '../../utils/bulkParser';
 import { parseBulkWrittenQuestionsText } from '../../utils/writtenBulkParser';
 import { generateQuestionsWithAI } from '../../utils/aiGenerator';
@@ -73,6 +74,27 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   onDeleteEnglishQuestion,
 }) => {
   const [activeTab, setActiveTab] = useState<'single' | 'bulk' | 'live_exam' | 'written' | 'english' | 'ai' | 'bank' | 'settings' | 'social' | 'banners' | 'results'>('single');
+  const [isCloudSyncing, setIsCloudSyncing] = useState(false);
+  const [cloudSyncMsg, setCloudSyncMsg] = useState('');
+
+  const handleForceCloudSync = async () => {
+    setIsCloudSyncing(true);
+    setCloudSyncMsg('ক্লাউড ডাটাবেজ সিঙ্ক হচ্ছে...');
+    try {
+      // Push any questions currently in memory to cloud
+      if (questions.length > 0) {
+        await cloudSaveQuestions(questions);
+      }
+      await syncAllWithCloud();
+      setCloudSyncMsg('সব প্রশ্ন ক্লাউডে সফলভাবে সিঙ্ক হয়েছে! ✅');
+      setTimeout(() => setCloudSyncMsg(''), 4000);
+    } catch (e) {
+      setCloudSyncMsg('সিঙ্কে সমস্যা হয়েছে। ইন্টারনেট সংযোগ চেক করুন।');
+      setTimeout(() => setCloudSyncMsg(''), 4000);
+    } finally {
+      setIsCloudSyncing(false);
+    }
+  };
 
   const safeCategories = categories || [];
   const safeQuestions = questions || [];
@@ -747,7 +769,24 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <span>লগ আউট (এডমিন)</span>
               </button>
             )}
+
+            <button
+              onClick={handleForceCloudSync}
+              disabled={isCloudSyncing}
+              className="inline-flex items-center gap-1.5 text-xs font-bold text-sky-200 hover:text-white px-3 py-1.5 rounded-lg bg-sky-600/30 hover:bg-sky-600/50 border border-sky-400/40 transition-all cursor-pointer shadow-xs"
+              title="কম্পিউটার ও মোবাইলের ডাটা একসাথে সিঙ্ক করুন"
+            >
+              <Cloud className={`w-3.5 h-3.5 ${isCloudSyncing ? 'animate-bounce text-amber-300' : 'text-sky-300'}`} />
+              <span>{isCloudSyncing ? 'সিঙ্ক হচ্ছে...' : '☁️ লাইভ ক্লাউড সিঙ্ক'}</span>
+            </button>
           </div>
+
+          {cloudSyncMsg && (
+            <div className="mb-2 inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-500/30 border border-emerald-400/50 rounded-lg text-[11px] font-bold text-emerald-200 animate-fadeIn">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-300" />
+              <span>{cloudSyncMsg}</span>
+            </div>
+          )}
           
           <div className="flex items-center gap-2">
             <ShieldCheck className="w-6 h-6 text-emerald-400 shrink-0" />
@@ -1284,7 +1323,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <div className="space-y-3 pt-4 border-t border-slate-100">
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="font-bold text-slate-900 text-sm">পার্সকৃত প্রশ্নের প্রিভিউ:</h3>
+                  <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
+                    <span>পার্সকৃত প্রশ্নের প্রিভিউ:</span>
+                    <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 text-xs rounded-full font-bold">
+                      {toBengaliNumeral(bulkParsedQuestions.length)} টি প্রশ্ন
+                    </span>
+                  </h3>
                   <p className="text-[11px] text-slate-500">
                     💡 কোনো প্রশ্নের সঠিক উত্তর পরিবর্তন করতে সংশ্লিষ্ট অপশনে ক্লিক করুন। সবুজ রঙের অপশনটি সঠিক উত্তর হিসেবে সেভ হবে।
                   </p>
@@ -1297,7 +1341,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 </button>
               </div>
 
-              <div className="space-y-3">
+              <div className="space-y-3 max-h-[650px] overflow-y-auto pr-1">
                 {bulkParsedQuestions.map((q, idx) => (
                   <div key={q.id || idx} className="p-4 bg-slate-50 border border-slate-200 rounded-2xl text-xs space-y-2 relative group">
                     <div className="flex items-start justify-between gap-2">
