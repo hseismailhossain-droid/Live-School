@@ -263,6 +263,14 @@ export function saveQuizResultToLeaderboard(result: QuizResult): QuizResult[] {
   }
 }
 
+export function saveStoredLeaderboard(list: QuizResult[]): void {
+  try {
+    localStorage.setItem(STORAGE_KEYS.LEADERBOARD, JSON.stringify(list));
+  } catch (err) {
+    console.error('Error saving leaderboard list', err);
+  }
+}
+
 export function clearStoredLeaderboard(): void {
   try {
     localStorage.removeItem(STORAGE_KEYS.LEADERBOARD);
