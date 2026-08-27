@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   Clock, CheckCircle2, XCircle, AlertCircle, ArrowLeft, ArrowRight, 
-  HelpCircle, Sparkles, Send, RefreshCw, BookOpen 
+  HelpCircle, Sparkles, Send, RefreshCw, BookOpen, Maximize2, Image as ImageIcon 
 } from 'lucide-react';
 import { Category, LevelInfo, Question, QuizAnswerRecord, QuizResult, QuizSettings } from '../types';
 import { playSoundEffect, toBengaliNumeral } from '../utils/storage';
+import { ImageViewModal } from './Common/ImageViewModal';
 
 interface QuizRunnerProps {
   category: Category;
@@ -30,6 +31,15 @@ export const QuizRunner: React.FC<QuizRunnerProps> = ({
   const [currentIndex, setCurrentIndex] = useState(0);
   const [userAnswers, setUserAnswers] = useState<Record<string, number>>({});
   const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [viewImageModal, setViewImageModal] = useState<{
+    isOpen: boolean;
+    imageUrl: string;
+    title: string;
+  }>({
+    isOpen: false,
+    imageUrl: '',
+    title: '',
+  });
 
   // Time tracking
   const timeLimitSeconds = (level.defaultTimeLimitMinutes || settings.timeLimitMinutes) * 60;
@@ -103,6 +113,8 @@ export const QuizRunner: React.FC<QuizRunnerProps> = ({
         correctIndex: q.correctAnswerIndex,
         isCorrect: isCorrect,
         explanation: q.explanation,
+        imageUrl: q.imageUrl,
+        explanationImageUrl: q.explanationImageUrl,
       });
     });
 
@@ -256,6 +268,34 @@ export const QuizRunner: React.FC<QuizRunnerProps> = ({
             </div>
           </div>
 
+          {/* Question Diagram / Image */}
+          {currentQuestion.imageUrl && (
+            <div className="relative group bg-slate-50 border border-slate-200 rounded-2xl p-3 flex flex-col items-center justify-center">
+              <img
+                src={currentQuestion.imageUrl}
+                alt="Question Diagram"
+                className="max-h-72 max-w-full object-contain rounded-xl shadow-xs cursor-pointer bg-white p-2 border border-slate-100"
+                onClick={() => setViewImageModal({
+                  isOpen: true,
+                  imageUrl: currentQuestion.imageUrl || '',
+                  title: `প্রশ্ন #${toBengaliNumeral(currentIndex + 1)}-এর চিত্র`,
+                })}
+              />
+              <button
+                type="button"
+                onClick={() => setViewImageModal({
+                  isOpen: true,
+                  imageUrl: currentQuestion.imageUrl || '',
+                  title: `প্রশ্ন #${toBengaliNumeral(currentIndex + 1)}-এর চিত্র`,
+                })}
+                className="mt-2 inline-flex items-center gap-1.5 px-3 py-1 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 text-xs font-bold rounded-xl shadow-2xs transition-all cursor-pointer"
+              >
+                <Maximize2 className="w-3.5 h-3.5 text-teal-600" />
+                <span>🔍 চিত্রটি বড় করে দেখুন</span>
+              </button>
+            </div>
+          )}
+
           {/* Options Grid (4 Options) */}
           <div className="grid grid-cols-1 gap-3.5 pt-2">
             {currentQuestion.options.map((optionText, optIdx) => {
@@ -313,18 +353,46 @@ export const QuizRunner: React.FC<QuizRunnerProps> = ({
 
           {/* Explanation Box (ব্যাখ্যা) - Revealed immediately when answered */}
           {hasAnsweredCurrent && (
-            <div className={`p-5 rounded-2xl border transition-all animate-in fade-in slide-in-from-top-2 duration-300 ${
+            <div className={`p-5 rounded-2xl border transition-all animate-in fade-in slide-in-from-top-2 duration-300 space-y-3 ${
               selectedIndex === currentQuestion.correctAnswerIndex
                 ? 'bg-emerald-50/80 border-emerald-200 text-emerald-950'
                 : 'bg-amber-50/80 border-amber-200 text-amber-950'
             }`}>
-              <div className="flex items-center gap-2 font-bold text-sm mb-2">
+              <div className="flex items-center gap-2 font-bold text-sm">
                 <BookOpen className="w-4 h-4 text-emerald-700" />
                 <span>সঠিক উত্তরের ব্যাখ্যা (Explanation):</span>
               </div>
               <p className="text-xs sm:text-sm leading-relaxed">
                 {currentQuestion.explanation || 'এই প্রশ্নের জন্য কোনো অতিরিক্ত ব্যাখ্যা দেওয়া হয়নি।'}
               </p>
+
+              {/* Explanation Diagram / Solution Image */}
+              {currentQuestion.explanationImageUrl && (
+                <div className="pt-2 border-t border-emerald-200/60 flex flex-col items-center">
+                  <img
+                    src={currentQuestion.explanationImageUrl}
+                    alt="Explanation Diagram"
+                    className="max-h-60 max-w-full object-contain rounded-xl bg-white p-2 border border-slate-200 shadow-2xs cursor-pointer"
+                    onClick={() => setViewImageModal({
+                      isOpen: true,
+                      imageUrl: currentQuestion.explanationImageUrl || '',
+                      title: `প্রশ্ন #${toBengaliNumeral(currentIndex + 1)}-এর উত্তরের ব্যাখ্যা চিত্র`,
+                    })}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setViewImageModal({
+                      isOpen: true,
+                      imageUrl: currentQuestion.explanationImageUrl || '',
+                      title: `প্রশ্ন #${toBengaliNumeral(currentIndex + 1)}-এর উত্তরের ব্যাখ্যা চিত্র`,
+                    })}
+                    className="mt-2 inline-flex items-center gap-1.5 px-3 py-1 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 text-xs font-bold rounded-xl shadow-2xs transition-all cursor-pointer"
+                  >
+                    <Maximize2 className="w-3.5 h-3.5 text-indigo-600" />
+                    <span>🔍 সমাধান চিত্রটি বড় করে দেখুন</span>
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
@@ -398,6 +466,14 @@ export const QuizRunner: React.FC<QuizRunnerProps> = ({
           </div>
         </div>
       )}
+
+      {/* Image Preview Modal */}
+      <ImageViewModal
+        isOpen={viewImageModal.isOpen}
+        imageUrl={viewImageModal.imageUrl}
+        title={viewImageModal.title}
+        onClose={() => setViewImageModal({ isOpen: false, imageUrl: '', title: '' })}
+      />
 
     </div>
   );
