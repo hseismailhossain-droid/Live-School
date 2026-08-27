@@ -1,11 +1,12 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import confetti from 'canvas-confetti';
 import { 
   Trophy, CheckCircle2, XCircle, Clock, AlertTriangle, RotateCcw, 
-  Award, Home, BookOpen, ChevronDown, ChevronUp, Share2 
+  Award, Home, BookOpen, ChevronDown, ChevronUp, Share2, Maximize2 
 } from 'lucide-react';
 import { QuizResult } from '../types';
 import { toBengaliNumeral } from '../utils/storage';
+import { ImageViewModal } from './Common/ImageViewModal';
 
 interface QuizResultViewProps {
   result: QuizResult;
@@ -20,7 +21,16 @@ export const QuizResultView: React.FC<QuizResultViewProps> = ({
   onOpenLeaderboard,
   onGoHome,
 }) => {
-  const [expandedIndex, setExpandedIndex] = React.useState<number | null>(null);
+  const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
+  const [viewImageModal, setViewImageModal] = useState<{
+    isOpen: boolean;
+    imageUrl: string;
+    title: string;
+  }>({
+    isOpen: false,
+    imageUrl: '',
+    title: '',
+  });
 
   const isPass = result.percentage >= 50;
 
@@ -188,6 +198,33 @@ export const QuizResultView: React.FC<QuizResultViewProps> = ({
                       <h4 className="font-bold text-slate-900 text-sm sm:text-base leading-snug">
                         {item.questionText}
                       </h4>
+
+                      {/* Question Diagram thumbnail */}
+                      {item.imageUrl && (
+                        <div className="mt-2 inline-flex items-center gap-2 p-1.5 bg-teal-50 border border-teal-200 rounded-xl">
+                          <img
+                            src={item.imageUrl}
+                            alt="Question Diagram"
+                            className="w-12 h-12 object-contain bg-white rounded-lg border border-teal-200 p-0.5"
+                          />
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setViewImageModal({
+                                isOpen: true,
+                                imageUrl: item.imageUrl || '',
+                                title: `প্রশ্ন #${toBengaliNumeral(idx + 1)}-এর চিত্র`,
+                              });
+                            }}
+                            className="px-2 py-1 bg-white hover:bg-teal-100 text-teal-800 text-[11px] font-bold rounded-lg border border-teal-300 flex items-center gap-1 cursor-pointer"
+                          >
+                            <Maximize2 className="w-3 h-3" />
+                            <span>চিত্র বড় করে দেখুন</span>
+                          </button>
+                        </div>
+                      )}
+
                       <div className="flex flex-wrap items-center gap-2 mt-1.5 text-xs font-semibold">
                         {item.isCorrect ? (
                           <span className="text-emerald-600 flex items-center gap-1">
@@ -251,7 +288,7 @@ export const QuizResultView: React.FC<QuizResultViewProps> = ({
                     </div>
 
                     {/* Explanation Box */}
-                    <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-700 space-y-1">
+                    <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-700 space-y-2">
                       <div className="font-bold text-emerald-800 flex items-center gap-1">
                         <BookOpen className="w-3.5 h-3.5" />
                         <span>সঠিক উত্তরের ব্যাখ্যা:</span>
@@ -259,6 +296,29 @@ export const QuizResultView: React.FC<QuizResultViewProps> = ({
                       <p className="leading-relaxed">
                         {item.explanation || 'কোনো অতিরিক্ত ব্যাখ্যা সংরক্ষিত নেই।'}
                       </p>
+
+                      {/* Explanation Diagram */}
+                      {item.explanationImageUrl && (
+                        <div className="pt-2 border-t border-slate-200/80 flex items-center gap-2">
+                          <img
+                            src={item.explanationImageUrl}
+                            alt="Explanation Diagram"
+                            className="w-14 h-14 object-contain bg-white rounded-lg border border-slate-200 p-0.5"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setViewImageModal({
+                              isOpen: true,
+                              imageUrl: item.explanationImageUrl || '',
+                              title: `প্রশ্ন #${toBengaliNumeral(idx + 1)}-এর সমাধান চিত্র`,
+                            })}
+                            className="px-2.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold rounded-lg border border-indigo-200 flex items-center gap-1 cursor-pointer"
+                          >
+                            <Maximize2 className="w-3.5 h-3.5" />
+                            <span>ব্যাখ্যার সমাধান চিত্র বড় করে দেখুন</span>
+                          </button>
+                        </div>
+                      )}
                     </div>
 
                   </div>
@@ -268,6 +328,14 @@ export const QuizResultView: React.FC<QuizResultViewProps> = ({
           })}
         </div>
       </div>
+
+      {/* Image Preview Modal */}
+      <ImageViewModal
+        isOpen={viewImageModal.isOpen}
+        imageUrl={viewImageModal.imageUrl}
+        title={viewImageModal.title}
+        onClose={() => setViewImageModal({ isOpen: false, imageUrl: '', title: '' })}
+      />
 
     </div>
   );
