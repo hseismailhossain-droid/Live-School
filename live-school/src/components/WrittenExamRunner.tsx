@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { 
   PenTool, ArrowLeft, Clock, Sparkles, Award, BookOpen, 
-  CheckCircle2, XCircle, FileText, Check, HelpCircle, ChevronDown, ChevronUp
+  CheckCircle2, XCircle, FileText, Check, HelpCircle, ChevronDown, ChevronUp, Maximize2
 } from 'lucide-react';
 import { WrittenQuestion, WrittenSubQuestion, WrittenExamResult, WrittenSubResult } from '../types';
 import { toBengaliNumeral } from '../utils/storage';
 import { evaluateWrittenAnswerOffline } from '../utils/writtenEvaluator';
+import { ImageViewModal } from './Common/ImageViewModal';
 
 interface WrittenExamRunnerProps {
   question: WrittenQuestion;
@@ -31,6 +32,7 @@ export const WrittenExamRunner: React.FC<WrittenExamRunnerProps> = ({
             modelAnswer: question.modelAnswer || '',
             marks: question.marks || 10,
             hints: question.hints || '',
+            imageUrl: question.imageUrl,
           },
         ];
 
@@ -42,6 +44,15 @@ export const WrittenExamRunner: React.FC<WrittenExamRunnerProps> = ({
   const [subResults, setSubResults] = useState<WrittenSubResult[] | null>(null);
   const [expandedAnswers, setExpandedAnswers] = useState<Record<string, boolean>>({});
   const [timeLeftSeconds, setTimeLeftSeconds] = useState((question.timeLimitMinutes || 20) * 60);
+  const [viewImageModal, setViewImageModal] = useState<{
+    isOpen: boolean;
+    imageUrl: string;
+    title: string;
+  }>({
+    isOpen: false,
+    imageUrl: '',
+    title: '',
+  });
 
   // Countdown timer
   useEffect(() => {
@@ -105,6 +116,8 @@ export const WrittenExamRunner: React.FC<WrittenExamRunnerProps> = ({
             feedback: evalResult.feedback,
             keyPointsFound: evalResult.keyPointsFound,
             keyPointsMissing: evalResult.keyPointsMissing,
+            imageUrl: sq.imageUrl,
+            modelAnswerImageUrl: sq.modelAnswerImageUrl,
           };
         });
 
@@ -243,6 +256,34 @@ export const WrittenExamRunner: React.FC<WrittenExamRunnerProps> = ({
                   </span>
                 </div>
 
+                {/* Sub-Question Diagram (if present) */}
+                {sq.imageUrl && (
+                  <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3 flex flex-col items-center justify-center">
+                    <img
+                      src={sq.imageUrl}
+                      alt="Question Diagram"
+                      className="max-h-64 max-w-full object-contain rounded-xl bg-white p-2 border border-slate-100 shadow-2xs cursor-pointer"
+                      onClick={() => setViewImageModal({
+                        isOpen: true,
+                        imageUrl: sq.imageUrl || '',
+                        title: `প্রশ্ন নম্বর ${toBengaliNumeral(sq.questionNum || idx + 1)}-এর চিত্র`,
+                      })}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setViewImageModal({
+                        isOpen: true,
+                        imageUrl: sq.imageUrl || '',
+                        title: `প্রশ্ন নম্বর ${toBengaliNumeral(sq.questionNum || idx + 1)}-এর চিত্র`,
+                      })}
+                      className="mt-2 inline-flex items-center gap-1.5 px-3 py-1 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 text-xs font-bold rounded-xl shadow-2xs transition-all cursor-pointer"
+                    >
+                      <Maximize2 className="w-3.5 h-3.5 text-indigo-600" />
+                      <span>🔍 চিত্রটি বড় করে দেখুন</span>
+                    </button>
+                  </div>
+                )}
+
                 {sq.hints && (
                   <div className="p-3 bg-amber-50 border border-amber-200 text-amber-900 rounded-xl text-xs flex items-start gap-2 font-medium">
                     <HelpCircle className="w-4 h-4 shrink-0 mt-0.5 text-amber-600" />
@@ -373,6 +414,29 @@ export const WrittenExamRunner: React.FC<WrittenExamRunnerProps> = ({
                       </div>
                     </div>
 
+                    {/* Question Diagram (Review mode) */}
+                    {sr.imageUrl && (
+                      <div className="flex items-center gap-2 p-2 bg-white rounded-xl border border-slate-200">
+                        <img
+                          src={sr.imageUrl}
+                          alt="Question Diagram"
+                          className="w-12 h-12 object-contain bg-white rounded-lg border border-slate-200 p-0.5"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setViewImageModal({
+                            isOpen: true,
+                            imageUrl: sr.imageUrl || '',
+                            title: `প্রশ্ন ${toBengaliNumeral(sr.questionNum)}-এর চিত্র`,
+                          })}
+                          className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold rounded-lg border border-indigo-200 flex items-center gap-1 cursor-pointer"
+                        >
+                          <Maximize2 className="w-3.5 h-3.5" />
+                          <span>প্রশ্নের চিত্র বড় করে দেখুন</span>
+                        </button>
+                      </div>
+                    )}
+
                     {/* Feedback */}
                     <div className="p-3.5 bg-indigo-50 border border-indigo-200 rounded-2xl text-xs sm:text-sm text-indigo-950 font-medium">
                       <strong className="text-indigo-800">মডেল ফিডব্যাক:</strong> {sr.feedback}
@@ -434,7 +498,7 @@ export const WrittenExamRunner: React.FC<WrittenExamRunnerProps> = ({
                       </button>
 
                       {isShowModel && (
-                        <div className="p-3.5 bg-amber-50 border border-amber-300 rounded-xl text-xs sm:text-sm text-amber-950 font-medium space-y-1">
+                        <div className="p-3.5 bg-amber-50 border border-amber-300 rounded-xl text-xs sm:text-sm text-amber-950 font-medium space-y-2">
                           <span className="font-black text-amber-900 flex items-center gap-1">
                             <BookOpen className="w-4 h-4 text-amber-700" />
                             <span>এডমিনের আদর্শ উত্তর / ব্যাখ্যা:</span>
@@ -442,6 +506,29 @@ export const WrittenExamRunner: React.FC<WrittenExamRunnerProps> = ({
                           <p className="whitespace-pre-wrap leading-relaxed">
                             {sr.modelAnswer}
                           </p>
+
+                          {/* Model Answer Diagram */}
+                          {sr.modelAnswerImageUrl && (
+                            <div className="pt-2 border-t border-amber-200 flex items-center gap-2">
+                              <img
+                                src={sr.modelAnswerImageUrl}
+                                alt="Model Answer Diagram"
+                                className="w-12 h-12 object-contain bg-white rounded-lg border border-amber-300 p-0.5"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => setViewImageModal({
+                                  isOpen: true,
+                                  imageUrl: sr.modelAnswerImageUrl || '',
+                                  title: `প্রশ্ন ${toBengaliNumeral(sr.questionNum)}-এর সমাধান চিত্র`,
+                                })}
+                                className="px-2.5 py-1 bg-white hover:bg-amber-100 text-amber-900 text-xs font-bold rounded-lg border border-amber-300 flex items-center gap-1 cursor-pointer"
+                              >
+                                <Maximize2 className="w-3.5 h-3.5" />
+                                <span>সমাধান চিত্র বড় করে দেখুন</span>
+                              </button>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
@@ -464,6 +551,14 @@ export const WrittenExamRunner: React.FC<WrittenExamRunnerProps> = ({
           </div>
         </div>
       )}
+
+      {/* Image Preview Modal */}
+      <ImageViewModal
+        isOpen={viewImageModal.isOpen}
+        imageUrl={viewImageModal.imageUrl}
+        title={viewImageModal.title}
+        onClose={() => setViewImageModal({ isOpen: false, imageUrl: '', title: '' })}
+      />
 
     </div>
   );
