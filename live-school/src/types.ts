@@ -9,6 +9,8 @@ export interface Question {
   points?: number; // Default 1
   examId?: string; // Required if created for a specific live exam
   questionType?: 'level' | 'live_exam'; // Indicates whether it's a level question or live exam question
+  imageUrl?: string; // গণিত চিত্র, ত্রিভুজ বা ডায়াগ্রাম URL / Data URI
+  explanationImageUrl?: string; // ব্যাখ্যার সাথে চিত্র / সমাধান ডায়াগ্রাম
 }
 
 export interface LevelInfo {
@@ -58,6 +60,8 @@ export interface QuizAnswerRecord {
   correctIndex: number;
   isCorrect: boolean;
   explanation: string;
+  imageUrl?: string;
+  explanationImageUrl?: string;
 }
 
 export interface QuizResult {
@@ -91,6 +95,8 @@ export interface WrittenSubQuestion {
   modelAnswer: string;
   marks: number;
   hints?: string;
+  imageUrl?: string; // প্রশ্ন চিত্র বা জ্যামিতিক ডায়াগ্রাম
+  modelAnswerImageUrl?: string; // উত্তরের চিত্র বা সমাধান ডায়াগ্রাম
 }
 
 export interface WrittenQuestion {
@@ -107,6 +113,7 @@ export interface WrittenQuestion {
   marks?: number; // Backward compatibility
   timeLimitMinutes?: number; // সময়সীমা
   hints?: string;
+  imageUrl?: string;
   createdAt: string;
 }
 
@@ -130,6 +137,8 @@ export interface WrittenSubResult {
   feedback: string;
   keyPointsFound?: string[];
   keyPointsMissing?: string[];
+  imageUrl?: string;
+  modelAnswerImageUrl?: string;
 }
 
 export interface WrittenExamResult {
