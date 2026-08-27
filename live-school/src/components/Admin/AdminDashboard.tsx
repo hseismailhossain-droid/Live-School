@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { 
   PlusCircle, FileText, Sparkles, Database, Settings as SettingsIcon, 
   Trash2, ArrowLeft, Check, RefreshCw, Layers, ShieldCheck, LogOut, Radio, PenTool, Plus,
-  Share2, Facebook, Youtube, Send, MessageSquare, Globe, Cloud, CheckCircle2
+  Share2, Facebook, Youtube, Send, MessageSquare, Globe, Cloud, CheckCircle2, Image as ImageIcon, Maximize2
 } from 'lucide-react';
 import { Category, LiveExam, Question, QuizResult, QuizSettings, WrittenQuestion, WrittenExamResult, WrittenSubQuestion, EnglishQuestionSet, EnglishExamResult, SocialLinks, BannerSlide } from '../../types';
 import { ensureCategoryLevel, toBengaliNumeral, getStoredSocialLinks, saveStoredSocialLinks, getStoredBanners, saveStoredBanners } from '../../utils/storage';
@@ -11,6 +11,9 @@ import { parseBulkQuestionsText } from '../../utils/bulkParser';
 import { parseBulkWrittenQuestionsText } from '../../utils/writtenBulkParser';
 import { generateQuestionsWithAI } from '../../utils/aiGenerator';
 import { LiveExamManager } from './LiveExamManager';
+import { MathSymbolToolbar } from '../Common/MathSymbolToolbar';
+import { ImageViewModal } from '../Common/ImageViewModal';
+import { MathDiagramModal } from '../Common/MathDiagramModal';
 
 interface AdminDashboardProps {
   categories: Category[];
@@ -301,6 +304,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     modelAnswer: string;
     marks: number;
     hints: string;
+    imageUrl?: string;
+    modelAnswerImageUrl?: string;
   }>>([
     {
       id: 'sq_init_1',
@@ -308,6 +313,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       modelAnswer: '',
       marks: 10,
       hints: '',
+      imageUrl: '',
+      modelAnswerImageUrl: '',
     }
   ]);
 
@@ -320,6 +327,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         modelAnswer: '',
         marks: 10,
         hints: '',
+        imageUrl: '',
+        modelAnswerImageUrl: '',
       }
     ]);
   };
@@ -360,6 +369,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       modelAnswer: q.modelAnswer.trim(),
       marks: q.marks > 0 ? q.marks : 10,
       hints: q.hints.trim(),
+      imageUrl: q.imageUrl?.trim() || undefined,
+      modelAnswerImageUrl: q.modelAnswerImageUrl?.trim() || undefined,
     }));
 
     const firstQ = formattedSubQuestions[0];
@@ -378,6 +389,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       marks: firstQ.marks,
       timeLimitMinutes: writtenTime > 0 ? writtenTime : 20,
       hints: firstQ.hints,
+      imageUrl: firstQ.imageUrl,
       createdAt: new Date().toISOString(),
     };
 
@@ -385,7 +397,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       onAddWrittenQuestion(newWq);
     }
 
-    setWrittenSubQuestions([{ id: 'sq_' + Date.now(), questionText: '', modelAnswer: '', marks: 10, hints: '' }]);
+    setWrittenSubQuestions([{ id: 'sq_' + Date.now(), questionText: '', modelAnswer: '', marks: 10, hints: '', imageUrl: '', modelAnswerImageUrl: '' }]);
     setWrittenSuccessMsg(`সেট ${toBengaliNumeral(writtenSetNum)} (${toBengaliNumeral(formattedSubQuestions.length)} টি প্রশ্নসহ) সফলভাবে যুক্ত হয়েছে! 🎉`);
     setTimeout(() => setWrittenSuccessMsg(''), 3500);
   };
@@ -429,7 +441,52 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [opt4, setOpt4] = useState('');
   const [correctIdx, setCorrectIdx] = useState<number>(0);
   const [explanation, setExplanation] = useState('');
+  const [questionImageUrl, setQuestionImageUrl] = useState('');
+  const [explanationImageUrl, setExplanationImageUrl] = useState('');
   const [singleSuccessMsg, setSingleSuccessMsg] = useState('');
+
+  // Math Symbols target input
+  const [activeInputForSymbol, setActiveInputForSymbol] = useState<'question' | 'opt1' | 'opt2' | 'opt3' | 'opt4' | 'explanation'>('question');
+
+  // Math Diagram & Image Modals
+  const [diagramModal, setDiagramModal] = useState<{
+    isOpen: boolean;
+    targetField: 'singleQuestion' | 'singleExplanation' | 'writtenQuestion' | 'writtenModelAnswer';
+    subId?: string;
+    currentUrl: string;
+    title: string;
+  }>({
+    isOpen: false,
+    targetField: 'singleQuestion',
+    currentUrl: '',
+    title: '',
+  });
+
+  const [viewImageModal, setViewImageModal] = useState<{
+    isOpen: boolean;
+    imageUrl: string;
+    title: string;
+  }>({
+    isOpen: false,
+    imageUrl: '',
+    title: '',
+  });
+
+  const handleInsertSymbol = (sym: string) => {
+    if (activeInputForSymbol === 'question') {
+      setQuestionText((prev) => prev + sym);
+    } else if (activeInputForSymbol === 'opt1') {
+      setOpt1((prev) => prev + sym);
+    } else if (activeInputForSymbol === 'opt2') {
+      setOpt2((prev) => prev + sym);
+    } else if (activeInputForSymbol === 'opt3') {
+      setOpt3((prev) => prev + sym);
+    } else if (activeInputForSymbol === 'opt4') {
+      setOpt4((prev) => prev + sym);
+    } else if (activeInputForSymbol === 'explanation') {
+      setExplanation((prev) => prev + sym);
+    }
+  };
 
   // --- Bulk Input State ---
   const [bulkTargetType, setBulkTargetType] = useState<'level' | 'live_exam'>('level');
@@ -523,6 +580,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       correctAnswerIndex: correctIdx,
       explanation: explanation.trim() || 'কোনো অতিরিক্ত ব্যাখ্যা সংযুক্ত করা হয়নি।',
       points: 1,
+      imageUrl: questionImageUrl.trim() || undefined,
+      explanationImageUrl: explanationImageUrl.trim() || undefined,
     };
 
     onAddQuestion(newQ);
@@ -534,6 +593,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     setOpt3('');
     setOpt4('');
     setExplanation('');
+    setQuestionImageUrl('');
+    setExplanationImageUrl('');
     
     if (qType === 'live_exam') {
       setSingleSuccessMsg(`লাইভ পরীক্ষায় প্রশ্নটি সফলভাবে যুক্ত করা হয়েছে! 🔴`);
@@ -1058,16 +1119,95 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </div>
             )}
 
+            {/* Math Symbols Toolbar */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between flex-wrap gap-2 text-xs">
+                <span className="font-bold text-slate-700">চিহ্ন যোগ করার ঘর নির্বাচন:</span>
+                <div className="flex items-center gap-1">
+                  {(['question', 'opt1', 'opt2', 'opt3', 'opt4', 'explanation'] as const).map((tgt) => (
+                    <button
+                      key={tgt}
+                      type="button"
+                      onClick={() => setActiveInputForSymbol(tgt)}
+                      className={`px-2 py-0.5 rounded-md font-bold text-[11px] transition-all cursor-pointer ${
+                        activeInputForSymbol === tgt
+                          ? 'bg-teal-600 text-white shadow-2xs'
+                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      }`}
+                    >
+                      {tgt === 'question' ? 'প্রশ্ন' : tgt.startsWith('opt') ? `অপশন ${tgt.replace('opt', '')}` : 'ব্যাখ্যা'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <MathSymbolToolbar onInsertSymbol={handleInsertSymbol} />
+            </div>
+
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">প্রশ্ন (Question Text):</label>
+              <div className="flex items-center justify-between gap-2 mb-1">
+                <label className="block text-xs font-bold text-slate-700">প্রশ্ন (Question Text):</label>
+                <button
+                  type="button"
+                  onClick={() => setDiagramModal({
+                    isOpen: true,
+                    targetField: 'singleQuestion',
+                    currentUrl: questionImageUrl,
+                    title: 'প্রশ্নের জন্য জ্যামিতিক চিত্র / ত্রিভুজ বা ছবি',
+                  })}
+                  className="inline-flex items-center gap-1.5 px-3 py-1 bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-200 text-xs font-bold rounded-xl transition-all cursor-pointer shadow-2xs"
+                >
+                  <ImageIcon className="w-3.5 h-3.5 text-teal-600" />
+                  <span>{questionImageUrl ? '📐 চিত্র পরিবর্তন করুন' : '📐 জ্যামিতি/ত্রিভুজ চিত্র যুক্ত করুন'}</span>
+                </button>
+              </div>
               <textarea
                 rows={2}
                 value={questionText}
+                onFocus={() => setActiveInputForSymbol('question')}
                 onChange={(e) => setQuestionText(e.target.value)}
-                placeholder="যেমন: বাংলা সাহিত্যের প্রথম সাশ্রয়ী আধুনিক উপন্যাস কোনটি?"
+                placeholder="যেমন: চিত্রে △ABC সমকোণী ত্রিভুজের অতিভুজ AC = কত?"
                 className="w-full px-4 py-2.5 border border-slate-300 rounded-xl text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500/30"
                 required
               />
+
+              {/* Question Image Preview Thumbnail */}
+              {questionImageUrl && (
+                <div className="mt-2.5 p-3 bg-teal-50/50 border border-teal-200 rounded-2xl flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <img
+                      src={questionImageUrl}
+                      alt="Question Diagram"
+                      className="w-16 h-16 object-contain rounded-xl bg-white border border-teal-200 p-1 shadow-2xs cursor-pointer"
+                      onClick={() => setViewImageModal({ isOpen: true, imageUrl: questionImageUrl, title: 'প্রশ্নের সংযুক্ত চিত্র' })}
+                    />
+                    <div>
+                      <span className="px-2 py-0.5 bg-teal-100 text-teal-900 font-extrabold text-[10px] rounded-md">
+                        📐 প্রশ্নের চিত্র সংযুক্ত
+                      </span>
+                      <p className="text-[11px] text-slate-600 mt-0.5">চিত্রটি কুইজ চলাকালীন প্রদর্শিত হবে</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setViewImageModal({ isOpen: true, imageUrl: questionImageUrl, title: 'প্রশ্নের সংযুক্ত চিত্র' })}
+                      className="px-2.5 py-1.5 bg-white hover:bg-slate-100 text-slate-700 text-xs font-bold rounded-xl border border-slate-200 flex items-center gap-1 cursor-pointer"
+                    >
+                      <Maximize2 className="w-3.5 h-3.5" />
+                      <span>প্রিভিউ</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setQuestionImageUrl('')}
+                      className="px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold rounded-xl border border-rose-200 flex items-center gap-1 cursor-pointer"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>মুছুন</span>
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* 4 Options Grid */}
@@ -1077,6 +1217,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <input
                   type="text"
                   value={opt1}
+                  onFocus={() => setActiveInputForSymbol('opt1')}
                   onChange={(e) => setOpt1(e.target.value)}
                   placeholder="অপশন ১"
                   className="w-full px-3.5 py-2 border border-slate-300 rounded-xl text-xs sm:text-sm"
@@ -1089,6 +1230,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <input
                   type="text"
                   value={opt2}
+                  onFocus={() => setActiveInputForSymbol('opt2')}
                   onChange={(e) => setOpt2(e.target.value)}
                   placeholder="অপশন ২"
                   className="w-full px-3.5 py-2 border border-slate-300 rounded-xl text-xs sm:text-sm"
@@ -1101,6 +1243,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <input
                   type="text"
                   value={opt3}
+                  onFocus={() => setActiveInputForSymbol('opt3')}
                   onChange={(e) => setOpt3(e.target.value)}
                   placeholder="অপশন ৩"
                   className="w-full px-3.5 py-2 border border-slate-300 rounded-xl text-xs sm:text-sm"
@@ -1113,6 +1256,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <input
                   type="text"
                   value={opt4}
+                  onFocus={() => setActiveInputForSymbol('opt4')}
                   onChange={(e) => setOpt4(e.target.value)}
                   placeholder="অপশন ৪"
                   className="w-full px-3.5 py-2 border border-slate-300 rounded-xl text-xs sm:text-sm"
@@ -1146,16 +1290,71 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
             {/* Explanation Field */}
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                সঠিক উত্তরের ব্যাখ্যা (Explanation):
-              </label>
+              <div className="flex items-center justify-between gap-2 mb-1">
+                <label className="block text-xs font-bold text-slate-700">
+                  সঠিক উত্তরের ব্যাখ্যা (Explanation):
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setDiagramModal({
+                    isOpen: true,
+                    targetField: 'singleExplanation',
+                    currentUrl: explanationImageUrl,
+                    title: 'ব্যাখ্যার জন্য সমাধান চিত্র / ডায়াগ্রাম',
+                  })}
+                  className="inline-flex items-center gap-1.5 px-3 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-200 text-xs font-bold rounded-xl transition-all cursor-pointer shadow-2xs"
+                >
+                  <ImageIcon className="w-3.5 h-3.5 text-indigo-600" />
+                  <span>{explanationImageUrl ? '📐 ব্যাখ্যা চিত্র পরিবর্তন' : '📐 ব্যাখ্যায় চিত্র/সমাধান যুক্ত করুন'}</span>
+                </button>
+              </div>
               <textarea
                 rows={2}
                 value={explanation}
+                onFocus={() => setActiveInputForSymbol('explanation')}
                 onChange={(e) => setExplanation(e.target.value)}
-                placeholder="পরীক্ষার্থীদের সঠিক উত্তর বুঝতে সুবিধা হওয়ার জন্য বিস্তারিত বিবরণ লিখুন..."
+                placeholder="পরীক্ষার্থীদের সঠিক উত্তর বুঝতে সুবিধা হওয়ার জন্য বিস্তারিত বিবরণ বা গাণিতিক ধাপ লিখুন..."
                 className="w-full px-4 py-2.5 border border-slate-300 rounded-xl text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500/30"
               />
+
+              {/* Explanation Image Preview Thumbnail */}
+              {explanationImageUrl && (
+                <div className="mt-2.5 p-3 bg-indigo-50/50 border border-indigo-200 rounded-2xl flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <img
+                      src={explanationImageUrl}
+                      alt="Explanation Diagram"
+                      className="w-16 h-16 object-contain rounded-xl bg-white border border-indigo-200 p-1 shadow-2xs cursor-pointer"
+                      onClick={() => setViewImageModal({ isOpen: true, imageUrl: explanationImageUrl, title: 'ব্যাখ্যার সংযুক্ত চিত্র' })}
+                    />
+                    <div>
+                      <span className="px-2 py-0.5 bg-indigo-100 text-indigo-900 font-extrabold text-[10px] rounded-md">
+                        📐 ব্যাখ্যার চিত্র সংযুক্ত
+                      </span>
+                      <p className="text-[11px] text-slate-600 mt-0.5">উত্তর দেওয়ার পর পরীক্ষার্থী এই চিত্র ও সমাধান দেখতে পাবে</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setViewImageModal({ isOpen: true, imageUrl: explanationImageUrl, title: 'ব্যাখ্যার সংযুক্ত চিত্র' })}
+                      className="px-2.5 py-1.5 bg-white hover:bg-slate-100 text-slate-700 text-xs font-bold rounded-xl border border-slate-200 flex items-center gap-1 cursor-pointer"
+                    >
+                      <Maximize2 className="w-3.5 h-3.5" />
+                      <span>প্রিভিউ</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setExplanationImageUrl('')}
+                      className="px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold rounded-xl border border-rose-200 flex items-center gap-1 cursor-pointer"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>মুছুন</span>
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
             <button
@@ -1593,17 +1792,66 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
                     <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
                       <div className="sm:col-span-3">
-                        <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                          লিখিত প্রশ্নটি লিখুন:
-                        </label>
+                        <div className="flex items-center justify-between gap-2 mb-1">
+                          <label className="block text-[11px] font-bold text-slate-700">
+                            লিখিত প্রশ্নটি লিখুন:
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => setDiagramModal({
+                              isOpen: true,
+                              targetField: 'writtenQuestion',
+                              subId: sq.id,
+                              currentUrl: sq.imageUrl || '',
+                              title: `প্রশ্ন ${toBengaliNumeral(idx + 1)}-এর জ্যামিতিক চিত্র / ডায়াগ্রাম`,
+                            })}
+                            className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-[11px] font-bold rounded-lg transition-all cursor-pointer"
+                          >
+                            <ImageIcon className="w-3 h-3 text-indigo-600" />
+                            <span>{sq.imageUrl ? '📐 চিত্র পরিবর্তন' : '📐 ত্রিভুজ/চিত্র যুক্ত'}</span>
+                          </button>
+                        </div>
                         <textarea
                           rows={2}
                           value={sq.questionText}
                           onChange={(e) => handleSubQuestionChange(sq.id, 'questionText', e.target.value)}
-                          placeholder={`প্রশ্ন ${toBengaliNumeral(idx + 1)}: এখানে আপনার লিখিত প্রশ্ন টাইপ করুন...`}
+                          placeholder={`প্রশ্ন ${toBengaliNumeral(idx + 1)}: যেমন- চিত্রে △ABC ত্রিভুজের ক্ষেত্রফল নির্ণয় কর...`}
                           className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm font-bold text-slate-900 focus:bg-white"
                           required
                         />
+
+                        {/* SubQuestion Image Thumbnail */}
+                        {sq.imageUrl && (
+                          <div className="mt-2 p-2 bg-indigo-50/50 border border-indigo-200 rounded-xl flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2">
+                              <img
+                                src={sq.imageUrl}
+                                alt="Question Diagram"
+                                className="w-12 h-12 object-contain rounded-lg bg-white border border-indigo-200 p-0.5 shadow-2xs cursor-pointer"
+                                onClick={() => setViewImageModal({ isOpen: true, imageUrl: sq.imageUrl || '', title: `প্রশ্ন ${toBengaliNumeral(idx + 1)}-এর চিত্র` })}
+                              />
+                              <span className="text-[11px] font-bold text-indigo-900">📐 প্রশ্নের চিত্র যুক্ত হয়েছে</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => setViewImageModal({ isOpen: true, imageUrl: sq.imageUrl || '', title: `প্রশ্ন ${toBengaliNumeral(idx + 1)}-এর চিত্র` })}
+                                className="px-2 py-1 bg-white text-slate-700 text-[11px] font-bold rounded-md border border-slate-200 flex items-center gap-1 cursor-pointer"
+                              >
+                                <Maximize2 className="w-3 h-3" />
+                                <span>প্রিভিউ</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleSubQuestionChange(sq.id, 'imageUrl', '')}
+                                className="px-2 py-1 bg-rose-50 text-rose-700 text-[11px] font-bold rounded-md border border-rose-200 flex items-center gap-1 cursor-pointer"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                                <span>মুছুন</span>
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       </div>
 
                       <div>
@@ -1623,9 +1871,25 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     </div>
 
                     <div>
-                      <label className="block text-[11px] font-bold text-amber-900 mb-1">
-                        এডমিনের সঠিক উত্তরের ব্যাখ্যা (Model Answer):
-                      </label>
+                      <div className="flex items-center justify-between gap-2 mb-1">
+                        <label className="block text-[11px] font-bold text-amber-900">
+                          এডমিনের সঠিক উত্তরের ব্যাখ্যা (Model Answer):
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => setDiagramModal({
+                            isOpen: true,
+                            targetField: 'writtenModelAnswer',
+                            subId: sq.id,
+                            currentUrl: sq.modelAnswerImageUrl || '',
+                            title: `প্রশ্ন ${toBengaliNumeral(idx + 1)}-এর সমাধান চিত্র / ডায়াগ্রাম`,
+                          })}
+                          className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 text-[11px] font-bold rounded-lg transition-all cursor-pointer"
+                        >
+                          <ImageIcon className="w-3 h-3 text-amber-700" />
+                          <span>{sq.modelAnswerImageUrl ? '📐 সমাধান চিত্র পরিবর্তন' : '📐 সমাধান চিত্র যুক্ত'}</span>
+                        </button>
+                      </div>
                       <textarea
                         rows={3}
                         value={sq.modelAnswer}
@@ -1634,6 +1898,39 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         className="w-full p-3 bg-amber-50/60 border border-amber-200 rounded-xl text-xs font-medium text-amber-950 focus:bg-white"
                         required
                       />
+
+                      {/* Model Answer Image Thumbnail */}
+                      {sq.modelAnswerImageUrl && (
+                        <div className="mt-2 p-2 bg-amber-50/70 border border-amber-200 rounded-xl flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <img
+                              src={sq.modelAnswerImageUrl}
+                              alt="Model Answer Diagram"
+                              className="w-12 h-12 object-contain rounded-lg bg-white border border-amber-300 p-0.5 shadow-2xs cursor-pointer"
+                              onClick={() => setViewImageModal({ isOpen: true, imageUrl: sq.modelAnswerImageUrl || '', title: `প্রশ্ন ${toBengaliNumeral(idx + 1)}-এর সমাধান চিত্র` })}
+                            />
+                            <span className="text-[11px] font-bold text-amber-950">📐 উত্তরের সমাধান চিত্র যুক্ত হয়েছে</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => setViewImageModal({ isOpen: true, imageUrl: sq.modelAnswerImageUrl || '', title: `প্রশ্ন ${toBengaliNumeral(idx + 1)}-এর সমাধান চিত্র` })}
+                              className="px-2 py-1 bg-white text-slate-700 text-[11px] font-bold rounded-md border border-slate-200 flex items-center gap-1 cursor-pointer"
+                            >
+                              <Maximize2 className="w-3 h-3" />
+                              <span>প্রিভিউ</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleSubQuestionChange(sq.id, 'modelAnswerImageUrl', '')}
+                              className="px-2 py-1 bg-rose-50 text-rose-700 text-[11px] font-bold rounded-md border border-rose-200 flex items-center gap-1 cursor-pointer"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                              <span>মুছুন</span>
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     <div>
@@ -2705,6 +3002,30 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     ))}
                   </div>
 
+                  {/* Diagrams in Bank item */}
+                  {(q.imageUrl || q.explanationImageUrl) && (
+                    <div className="flex items-center gap-3 pt-1 border-t border-slate-200/60 flex-wrap">
+                      {q.imageUrl && (
+                        <div 
+                          onClick={() => setViewImageModal({ isOpen: true, imageUrl: q.imageUrl || '', title: 'প্রশ্নের সংযুক্ত চিত্র' })}
+                          className="flex items-center gap-1.5 p-1.5 bg-teal-50 border border-teal-200 rounded-lg cursor-pointer hover:bg-teal-100 transition-colors"
+                        >
+                          <img src={q.imageUrl} alt="Question Diagram" className="w-8 h-8 object-contain bg-white rounded border border-teal-200" />
+                          <span className="text-[11px] font-bold text-teal-800">📐 প্রশ্নের চিত্র</span>
+                        </div>
+                      )}
+                      {q.explanationImageUrl && (
+                        <div 
+                          onClick={() => setViewImageModal({ isOpen: true, imageUrl: q.explanationImageUrl || '', title: 'ব্যাখ্যার সংযুক্ত চিত্র' })}
+                          className="flex items-center gap-1.5 p-1.5 bg-indigo-50 border border-indigo-200 rounded-lg cursor-pointer hover:bg-indigo-100 transition-colors"
+                        >
+                          <img src={q.explanationImageUrl} alt="Explanation Diagram" className="w-8 h-8 object-contain bg-white rounded border border-indigo-200" />
+                          <span className="text-[11px] font-bold text-indigo-800">📐 ব্যাখ্যার সমাধান চিত্র</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   <div className="text-slate-600 pt-1 border-t border-slate-200/60">
                     <strong>ব্যাখ্যা:</strong> {q.explanation}
                   </div>
@@ -3454,6 +3775,34 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           </div>
         </div>
       )}
+
+      {/* Math Diagram Creator & Image Modal */}
+      <MathDiagramModal
+        isOpen={diagramModal.isOpen}
+        targetFieldTitle={diagramModal.title}
+        currentImageUrl={diagramModal.currentUrl}
+        onSave={(url) => {
+          if (diagramModal.targetField === 'singleQuestion') {
+            setQuestionImageUrl(url);
+          } else if (diagramModal.targetField === 'singleExplanation') {
+            setExplanationImageUrl(url);
+          } else if (diagramModal.targetField === 'writtenQuestion' && diagramModal.subId) {
+            handleSubQuestionChange(diagramModal.subId, 'imageUrl', url);
+          } else if (diagramModal.targetField === 'writtenModelAnswer' && diagramModal.subId) {
+            handleSubQuestionChange(diagramModal.subId, 'modelAnswerImageUrl', url);
+          }
+          setDiagramModal((prev) => ({ ...prev, isOpen: false }));
+        }}
+        onClose={() => setDiagramModal((prev) => ({ ...prev, isOpen: false }))}
+      />
+
+      {/* Full Image Preview Zoom Modal */}
+      <ImageViewModal
+        isOpen={viewImageModal.isOpen}
+        imageUrl={viewImageModal.imageUrl}
+        title={viewImageModal.title}
+        onClose={() => setViewImageModal({ isOpen: false, imageUrl: '', title: '' })}
+      />
 
     </div>
   );
